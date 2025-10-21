@@ -1,4 +1,9 @@
 require('dotenv').config();
+
+if (!process.env.SECRET_KEY) {
+  throw new Error('Missing SECRET_KEY environment variable');
+}
+
 const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');

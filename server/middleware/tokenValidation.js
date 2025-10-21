@@ -1,25 +1,20 @@
-const jwt = require('jsonwebtoken')
-const { restart } = require('nodemon')
+const jwt = require('jsonwebtoken');
+const { restart } = require('nodemon');
 
 module.exports.validateToken = (req, res, next) => {
-  let response = {}
-
   try {
-    if (!req.headers.authorization) {
-      throw new Error('Token is missing from header')
-    }
+    const auth = req.headers.authorization || '';
+    const m = auth.match(/^\s*Bearer\s+(.+)$/i);
+    if (!m) return res.status(401).send({ status: 401, message: 'Authorization header missing or malformed' });
 
-    const userToken = req.headers.authorization.split('Bearer')[1].trim()
-    const decodedToken = jwt.verify(
-      userToken,
-      process.env.SECRET_KEY || 'default-secret-key'
-    )
-    return next()
-  } catch (error) {
-    console.error('Error in tokenValidation.js', error)
-    response.status = 401
-    response.message = error.message
+    const token = m[1];
+    const secret = process.env.SECRET_KEY;
+    if (!secret) return res.status(500).send({ status: 500, message: 'Server misconfigured (missing SECRET_KEY)' });
+
+    const decoded = jwt.verify(token, secret);
+    req.userId = decoded.id;
+    return next();
+  } catch (err) {
+    return res.status(401).send({ status: 401, message: 'Invalid or expired token' });
   }
-
-  return res.status(response.status).send(response)
-}
+};

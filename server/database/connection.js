@@ -1,40 +1,44 @@
+const { MongoClient } = require('mongodb');
 require('dotenv').config();
-const mongoose = require('mongoose');
 
-const MONGO_URI = process.env.DBMONGO_URI;
-if (!MONGO_URI) {
-  throw new Error('Missing DBMONGO_URI in .env');
-}
-
-// global cache across module reloads (important for serverless/cold-start reuse)
-let cached = global.__mongoose;
-if (!cached) {
-  cached = global.__mongoose = { conn: null, promise: null };
+const uri = process.env.DBMONGO_URI;
+if (!uri) {
+  throw new Error('Missing DBMONGO_URI in environment');
 }
 
 const options = {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-  // tune timeouts so failures surface quickly instead of hanging forever
-  serverSelectionTimeoutMS: 5000, // try for 5s then error
-  connectTimeoutMS: 10000,
-  socketTimeoutMS: 45000,
-  // optional: limit pool size if you want
-  // maxPoolSize: 5
 };
 
-async function connect() {
-  if (cached.conn) {
-    return cached.conn;
-  }
+let client;
+let db;
 
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGO_URI, options).then(m => {
-      return m.connection;
-    });
-  }
-  cached.conn = await cached.promise;
-  return cached.conn;
+async function connect() {
+  if (db) return db; 
+  client = new MongoClient(uri, options);
+  await client.connect();
+  db = client.db(); 
+  return db;
 }
 
-module.exports = { connect, mongoose };
+function getDb() {
+  if (!db) {
+    throw new Error('Database not connected. Call connect() first.');
+  }
+  return db;
+}
+
+function getCollection(name) {
+  return getDb().collection(name);
+}
+
+async function close() {
+  if (client) {
+    await client.close();
+    client = null;
+    db = null;
+  }
+}
+
+module.exports = { connect, getDb, getCollection, close };
